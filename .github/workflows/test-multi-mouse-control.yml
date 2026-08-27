@@ -39,6 +39,60 @@ jobs:
           $configuration.TestResult.OutputPath = "multi-mouse-control-test-results.xml"
           Invoke-Pester -Configuration $configuration
 
+      - name: Build standalone package
+        env:
+          PACKAGE_VERSION: "1.0.0"
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packageName = "multi-mouse-control-v$env:PACKAGE_VERSION"
+          $distRoot = Join-Path $PWD "dist"
+          $stageRoot = Join-Path $distRoot $packageName
+          New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
+          Copy-Item -LiteralPath "multi-mouse-control" -Destination $stageRoot -Recurse -Force
+
+          $sourceSha = if ([string]::IsNullOrWhiteSpace($env:PR_HEAD_SHA)) {
+            $env:GITHUB_SHA
+          } else {
+            $env:PR_HEAD_SHA
+          }
+          $metadata = [ordered]@{
+            package = "multi-mouse-control"
+            version = $env:PACKAGE_VERSION
+            sourceRepository = $env:GITHUB_REPOSITORY
+            sourceSha = $sourceSha
+            workflowRunId = $env:GITHUB_RUN_ID
+            builtAtUtc = [DateTime]::UtcNow.ToString("o")
+            testFramework = "Pester 5.7.1"
+            testCount = 43
+          }
+          $metadataPath = Join-Path $stageRoot "BUILD-METADATA.json"
+          [IO.File]::WriteAllText(
+            $metadataPath,
+            ($metadata | ConvertTo-Json -Depth 4),
+            [Text.UTF8Encoding]::new($false)
+          )
+
+          $zipPath = Join-Path $distRoot "$packageName.zip"
+          Compress-Archive -LiteralPath $stageRoot -DestinationPath $zipPath -CompressionLevel Optimal -Force
+          $hash = Get-FileHash -LiteralPath $zipPath -Algorithm SHA256
+          $checksumPath = "$zipPath.sha256"
+          "$($hash.Hash.ToLowerInvariant())  $packageName.zip" |
+            Set-Content -LiteralPath $checksumPath -Encoding ascii
+          Copy-Item -LiteralPath "multi-mouse-control\README.md" `
+            -Destination (Join-Path $distRoot "$packageName-README.md") -Force
+
+          Write-Host "Package: $zipPath"
+          Write-Host "SHA256: $($hash.Hash.ToLowerInvariant())"
+
+      - name: Upload standalone package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: multi-mouse-control-v1.0.0
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
