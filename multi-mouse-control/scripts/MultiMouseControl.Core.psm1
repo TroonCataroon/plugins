@@ -54,7 +54,7 @@ function Remove-CodexMouseMuxBlock {
     )
 
     $normalized = $Content -replace "`r`n?", "`n"
-    $lines = $normalized -split "`n", -1
+    $lines = $normalized -split "`n"
     $result = [System.Collections.Generic.List[string]]::new()
     $skipNamespace = $false
 

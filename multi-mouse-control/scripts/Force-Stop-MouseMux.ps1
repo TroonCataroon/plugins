@@ -47,7 +47,7 @@ try {
             Select-Object -ExpandProperty OwningProcess -Unique
     )
 } catch {
-    $messages.Add("$timestamp WARN Unable to inspect TCP port $Port: $($_.Exception.Message)")
+    $messages.Add("$timestamp WARN Unable to inspect TCP port ${Port}: $($_.Exception.Message)")
 }
 
 foreach ($listenerPid in $listenerProcessIds) {
@@ -92,7 +92,7 @@ foreach ($processId in @($trustedProcessIds)) {
 
         $messages.Add("$timestamp INFO Stopped $processName PID $processId.")
     } catch {
-        $messages.Add("$timestamp ERROR Failed to stop $processName PID $processId: $($_.Exception.Message)")
+        $messages.Add("$timestamp ERROR Failed to stop $processName PID ${processId}: $($_.Exception.Message)")
     }
 }
 
