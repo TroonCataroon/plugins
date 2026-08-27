@@ -36,6 +36,10 @@ if ([System.IO.Path]::GetFileName($trimmedInstallRoot) -ne 'MultiMouseControl') 
     throw 'Refusing to remove an InstallRoot whose final directory is not MultiMouseControl.'
 }
 
+if (-not $PSCmdlet.ShouldProcess($installRootFull, 'Uninstall Multi Mouse Control')) {
+    return
+}
+
 $legacyTaskName = 'MultiMouseControl-ForceStop'
 $getScheduledTask = Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue
 $unregisterScheduledTask = Get-Command Unregister-ScheduledTask -ErrorAction SilentlyContinue
@@ -79,12 +83,21 @@ if ($RemoveMcpConfiguration -and (Test-Path -LiteralPath $ConfigPath)) {
 }
 
 if (-not $KeepInstalledFiles -and (Test-Path -LiteralPath $installRootFull)) {
+    $workingDirectory = [System.IO.Path]::GetFullPath($env:TEMP)
+    $currentPath = (Get-Location).ProviderPath
+    if (Test-MmcPathWithinRoot -Path $currentPath -Root $installRootFull) {
+        Set-Location -LiteralPath $workingDirectory
+    }
+
     $escapedRoot = $installRootFull.Replace("'", "''")
-    $cleanupScript = "Start-Sleep -Seconds 2; Remove-Item -LiteralPath '$escapedRoot' -Recurse -Force"
+    $escapedWorkingDirectory = $workingDirectory.Replace("'", "''")
+    $logPath = Join-Path $workingDirectory 'multi-mouse-control-uninstall.log'
+    $escapedLogPath = $logPath.Replace("'", "''")
+    $cleanupScript = "`$ErrorActionPreference = 'Stop'; Set-Location -LiteralPath '$escapedWorkingDirectory'; Start-Sleep -Seconds 2; try { Remove-Item -LiteralPath '$escapedRoot' -Recurse -Force } catch { `$_ | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8; throw }"
     $encodedCleanup = [System.Convert]::ToBase64String(
         [System.Text.Encoding]::Unicode.GetBytes($cleanupScript)
     )
-    Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @(
+    Start-Process -FilePath 'powershell.exe' -WorkingDirectory $workingDirectory -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
         '-ExecutionPolicy',
         'Bypass',

@@ -18,7 +18,7 @@ function Resolve-MmcMcpUri {
         throw 'MouseMux MCP URL must use http because the endpoint is local-only.'
     }
 
-    if ($uri.Host -notin @('127.0.0.1', 'localhost', '::1')) {
+    if ($uri.DnsSafeHost -notin @('127.0.0.1', 'localhost', '::1')) {
         throw 'MouseMux MCP URL must use 127.0.0.1, localhost, or ::1.'
     }
 

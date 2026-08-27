@@ -56,6 +56,10 @@ if (
     throw 'InstallerUrl must be the pinned official MouseMux V3 3.0.19 installer URL.'
 }
 
+if (-not $PSCmdlet.ShouldProcess($installRootFull, 'Install Multi Mouse Control')) {
+    return
+}
+
 $sourceRoot = Split-Path -Parent $PSScriptRoot
 $installDirectories = @(
     $installRootFull,

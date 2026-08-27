@@ -17,6 +17,11 @@ Describe "Resolve-MmcMcpUri" {
         $result.AbsoluteUri | Should -Be "http://localhost:41760/"
     }
 
+    It "accepts the IPv6 loopback endpoint" {
+        $result = Resolve-MmcMcpUri -Url "http://[::1]:41760/mcp"
+        $result.AbsoluteUri | Should -Be "http://[::1]:41760/mcp"
+    }
+
     It "rejects unsafe or unexpected endpoints" -ForEach @(
         @{ Url = "https://127.0.0.1:41760/mcp"; Reason = "scheme" }
         @{ Url = "http://192.168.1.25:41760/mcp"; Reason = "host" }
