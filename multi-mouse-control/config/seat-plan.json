@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "mode": "switched",
+  "multiKeyboard": true,
+  "seats": [
+    {
+      "id": "troon",
+      "label": "Troon",
+      "type": "physical",
+      "cursorColor": "#00D9FF",
+      "deviceAssignment": "primary physical mouse and keyboard",
+      "windowLock": null
+    },
+    {
+      "id": "agent",
+      "label": "Agent",
+      "type": "virtual",
+      "cursorColor": "#FF3BD4",
+      "deviceAssignment": "Input Mapper MCP virtual user",
+      "windowLock": "required"
+    },
+    {
+      "id": "cursor",
+      "label": "Cursor",
+      "type": "optional-physical-or-virtual",
+      "cursorColor": "#5EFF8A",
+      "deviceAssignment": "unassigned until explicitly needed",
+      "windowLock": "required when virtual"
+    }
+  ],
+  "safety": {
+    "mcpEndpoint": "http://127.0.0.1:41760/mcp",
+    "armByDefault": false,
+    "approvalMode": "prompt",
+    "vendorEmergencyExit": "Ctrl+Alt+F12",
+    "fallbackShortcut": "FORCE STOP - MouseMux"
+  }
+}

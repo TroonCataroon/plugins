@@ -1,0 +1,31 @@
+{
+  "name": "multi-mouse-control",
+  "displayName": "Multi Mouse Control",
+  "version": "1.0.0",
+  "description": "Install, configure, verify, and safely operate MouseMux Input Mapper MCP for independent human and AI cursors on Windows.",
+  "author": {
+    "name": "TroonCataroon"
+  },
+  "homepage": "https://github.com/TroonCataroon/plugins/tree/main/multi-mouse-control",
+  "repository": "https://github.com/TroonCataroon/plugins",
+  "license": "MIT",
+  "keywords": [
+    "mousemux",
+    "multi-mouse",
+    "multiple-cursors",
+    "input-mapper",
+    "mcp",
+    "windows",
+    "agent-control"
+  ],
+  "category": "developer-tools",
+  "tags": [
+    "windows",
+    "input",
+    "agents",
+    "safety",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "agents": "./agents/"
+}
