@@ -8,10 +8,7 @@ param(
 
     [switch]$RemoveMcpConfiguration,
 
-    [switch]$KeepInstalledFiles,
-
-    [Parameter(DontShow)]
-    [switch]$Elevated
+    [switch]$KeepInstalledFiles
 )
 
 Set-StrictMode -Version Latest
@@ -21,73 +18,48 @@ if ($env:OS -ne 'Windows_NT') {
     throw 'Multi Mouse Control can only be uninstalled on Windows.'
 }
 
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = [Security.Principal.WindowsPrincipal]::new($identity)
-$isAdministrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$modulePath = Join-Path $PSScriptRoot 'MultiMouseControl.Core.psm1'
+Import-Module $modulePath -Force -ErrorAction Stop
 
-if (-not $isAdministrator) {
-    if ($Elevated) {
-        throw 'Elevation was requested, but the process is not running as an administrator.'
-    }
-
-    $quotedScript = '"{0}"' -f $PSCommandPath.Replace('"', '\"')
-    $quotedInstallRoot = '"{0}"' -f $InstallRoot.Replace('"', '\"')
-    $quotedConfigPath = '"{0}"' -f $ConfigPath.Replace('"', '\"')
-    $arguments = @(
-        '-NoProfile',
-        '-ExecutionPolicy Bypass',
-        '-File',
-        $quotedScript,
-        '-InstallRoot',
-        $quotedInstallRoot,
-        '-ConfigPath',
-        $quotedConfigPath,
-        '-Elevated'
-    )
-    if ($RemoveMcpConfiguration) { $arguments += '-RemoveMcpConfiguration' }
-    if ($KeepInstalledFiles) { $arguments += '-KeepInstalledFiles' }
-
-    Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList ($arguments -join ' ')
-    return
-}
-
-$installRootFull = [IO.Path]::GetFullPath($InstallRoot)
-$localAppDataFull = [IO.Path]::GetFullPath($env:LOCALAPPDATA)
-if (-not $installRootFull.StartsWith($localAppDataFull, [StringComparison]::OrdinalIgnoreCase)) {
+$installRootFull = [System.IO.Path]::GetFullPath($InstallRoot)
+$localAppDataFull = [System.IO.Path]::GetFullPath($env:LOCALAPPDATA)
+if (-not (Test-MmcPathWithinRoot -Path $installRootFull -Root $localAppDataFull)) {
     throw 'Refusing to remove an InstallRoot outside LOCALAPPDATA.'
 }
-$trimmedInstallRoot = $installRootFull.TrimEnd([char[]]@([char]92, [char]47))
-if ([IO.Path]::GetFileName($trimmedInstallRoot) -ne 'MultiMouseControl') {
+
+$trimCharacters = [char[]]@(
+    [System.IO.Path]::DirectorySeparatorChar,
+    [System.IO.Path]::AltDirectorySeparatorChar
+)
+$trimmedInstallRoot = $installRootFull.TrimEnd($trimCharacters)
+if ([System.IO.Path]::GetFileName($trimmedInstallRoot) -ne 'MultiMouseControl') {
     throw 'Refusing to remove an InstallRoot whose final directory is not MultiMouseControl.'
 }
 
-$taskName = 'MultiMouseControl-ForceStop'
-try {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Stop
-    Write-Host "Removed scheduled task: $taskName"
-} catch {
-    Write-Verbose "Scheduled task was not present or could not be removed: $($_.Exception.Message)"
+$legacyTaskName = 'MultiMouseControl-ForceStop'
+$getScheduledTask = Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue
+$unregisterScheduledTask = Get-Command Unregister-ScheduledTask -ErrorAction SilentlyContinue
+if ($null -ne $getScheduledTask -and $null -ne $unregisterScheduledTask) {
+    try {
+        $legacyTask = Get-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+        if ($null -ne $legacyTask) {
+            Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false -ErrorAction Stop
+            Write-Host "Removed legacy scheduled task: $legacyTaskName"
+        }
+    } catch {
+        Write-Warning "A legacy elevated task may still exist and could not be removed without administrator approval: $($_.Exception.Message)"
+    }
 }
 
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'FORCE STOP - MouseMux.lnk'
+$shortcutPath = Join-Path ([System.Environment]::GetFolderPath('Desktop')) 'FORCE STOP - MouseMux.lnk'
 if (Test-Path -LiteralPath $shortcutPath) {
     Remove-Item -LiteralPath $shortcutPath -Force
     Write-Host "Removed shortcut: $shortcutPath"
 }
 
 if ($RemoveMcpConfiguration -and (Test-Path -LiteralPath $ConfigPath)) {
-    $moduleCandidates = @(
-        (Join-Path $installRootFull 'scripts\MultiMouseControl.Core.psm1'),
-        (Join-Path $PSScriptRoot 'MultiMouseControl.Core.psm1')
-    )
-    $modulePath = $moduleCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if ($null -eq $modulePath) {
-        throw 'Cannot remove the Codex MCP block because MultiMouseControl.Core.psm1 was not found.'
-    }
-
-    Import-Module $modulePath -Force -ErrorAction Stop
-    $configPathFull = [IO.Path]::GetFullPath($ConfigPath)
-    $currentContent = [IO.File]::ReadAllText($configPathFull)
+    $configPathFull = [System.IO.Path]::GetFullPath($ConfigPath)
+    $currentContent = [System.IO.File]::ReadAllText($configPathFull)
     $updatedContent = Remove-CodexMouseMuxBlock -Content $currentContent
     if (-not [string]::IsNullOrWhiteSpace($updatedContent)) {
         $updatedContent = $updatedContent.TrimEnd() + "`n"
@@ -97,7 +69,11 @@ if ($RemoveMcpConfiguration -and (Test-Path -LiteralPath $ConfigPath)) {
         $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
         $backupPath = "$configPathFull.multi-mouse-control-uninstall.$timestamp.bak"
         Copy-Item -LiteralPath $configPathFull -Destination $backupPath -Force
-        [IO.File]::WriteAllText($configPathFull, $updatedContent, [Text.UTF8Encoding]::new($false))
+        [System.IO.File]::WriteAllText(
+            $configPathFull,
+            $updatedContent,
+            [System.Text.UTF8Encoding]::new($false)
+        )
         Write-Host "Removed MouseMux MCP configuration. Backup: $backupPath"
     }
 }
@@ -105,7 +81,9 @@ if ($RemoveMcpConfiguration -and (Test-Path -LiteralPath $ConfigPath)) {
 if (-not $KeepInstalledFiles -and (Test-Path -LiteralPath $installRootFull)) {
     $escapedRoot = $installRootFull.Replace("'", "''")
     $cleanupScript = "Start-Sleep -Seconds 2; Remove-Item -LiteralPath '$escapedRoot' -Recurse -Force"
-    $encodedCleanup = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cleanupScript))
+    $encodedCleanup = [System.Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($cleanupScript)
+    )
     Start-Process -FilePath 'powershell.exe' -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
         '-ExecutionPolicy',

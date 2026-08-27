@@ -11,38 +11,73 @@ function Resolve-MmcMcpUri {
 
     $uri = $null
     if (-not [System.Uri]::TryCreate($Url, [System.UriKind]::Absolute, [ref]$uri)) {
-        throw "MouseMux MCP URL must be an absolute URI."
+        throw 'MouseMux MCP URL must be an absolute URI.'
     }
 
     if ($uri.Scheme -ne [System.Uri]::UriSchemeHttp) {
-        throw "MouseMux MCP URL must use http because the endpoint is local-only."
+        throw 'MouseMux MCP URL must use http because the endpoint is local-only.'
     }
 
     if ($uri.Host -notin @('127.0.0.1', 'localhost', '::1')) {
-        throw "MouseMux MCP URL must use 127.0.0.1, localhost, or ::1."
+        throw 'MouseMux MCP URL must use 127.0.0.1, localhost, or ::1.'
     }
 
     if ($uri.Port -ne 41760) {
-        throw "MouseMux MCP URL must use port 41760."
+        throw 'MouseMux MCP URL must use port 41760.'
     }
 
     if (-not [string]::IsNullOrEmpty($uri.UserInfo)) {
-        throw "MouseMux MCP URL must not contain credentials."
+        throw 'MouseMux MCP URL must not contain credentials.'
     }
 
     if (-not [string]::IsNullOrEmpty($uri.Query)) {
-        throw "MouseMux MCP URL must not contain a query string."
+        throw 'MouseMux MCP URL must not contain a query string.'
     }
 
     if (-not [string]::IsNullOrEmpty($uri.Fragment)) {
-        throw "MouseMux MCP URL must not contain a fragment."
+        throw 'MouseMux MCP URL must not contain a fragment.'
     }
 
     if ($uri.AbsolutePath.Contains('..') -or $uri.AbsolutePath.Contains('\')) {
-        throw "MouseMux MCP URL contains an unsafe path."
+        throw 'MouseMux MCP URL contains an unsafe path.'
     }
 
     return $uri
+}
+
+function Test-MmcPathWithinRoot {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Root
+    )
+
+    try {
+        $pathFull = [System.IO.Path]::GetFullPath($Path)
+        $rootFull = [System.IO.Path]::GetFullPath($Root)
+    } catch {
+        return $false
+    }
+
+    $trimCharacters = [char[]]@(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+    $pathComparable = $pathFull.TrimEnd($trimCharacters)
+    $rootComparable = $rootFull.TrimEnd($trimCharacters)
+
+    if ($pathComparable.Equals($rootComparable, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    $rootBoundary = $rootComparable + [System.IO.Path]::DirectorySeparatorChar
+    return $pathFull.StartsWith($rootBoundary, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Remove-CodexMouseMuxBlock {
@@ -106,18 +141,22 @@ function Set-CodexMouseMuxBlock {
     $block.Add('default_tools_approval_mode = "prompt"')
 
     if ($null -ne $EnabledTool -and $EnabledTool.Count -gt 0) {
-        $toolValues = foreach ($tool in $EnabledTool) {
-            if ([string]::IsNullOrWhiteSpace($tool)) {
-                continue
+        $toolValues = @(
+            foreach ($tool in $EnabledTool) {
+                if ([string]::IsNullOrWhiteSpace($tool)) {
+                    throw 'Enabled tool names must not be empty.'
+                }
+
+                if ($tool -notmatch '\A[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}\z') {
+                    throw "Enabled tool name '$tool' contains unsupported characters."
+                }
+
+                $escapedTool = $tool.Replace('\', '\\').Replace('"', '\"')
+                '"{0}"' -f $escapedTool
             }
+        )
 
-            $escapedTool = $tool.Replace('\', '\\').Replace('"', '\"')
-            '"{0}"' -f $escapedTool
-        }
-
-        if ($toolValues.Count -gt 0) {
-            $block.Add('enabled_tools = [{0}]' -f ([string]::Join(', ', $toolValues)))
-        }
+        $block.Add('enabled_tools = [{0}]' -f ([string]::Join(', ', $toolValues)))
     }
 
     $baseContent = Remove-CodexMouseMuxBlock -Content $Content
@@ -161,30 +200,28 @@ function Test-MouseMuxProcessIdentity {
     }
 
     if ([string]::IsNullOrWhiteSpace($ExecutablePath)) {
-        return $true
+        return $false
     }
 
-    $pathFileName = [System.IO.Path]::GetFileName($ExecutablePath)
+    if (-not [System.IO.Path]::IsPathRooted($ExecutablePath)) {
+        return $false
+    }
+
+    try {
+        $pathFull = [System.IO.Path]::GetFullPath($ExecutablePath)
+    } catch {
+        return $false
+    }
+
+    $pathFileName = [System.IO.Path]::GetFileName($pathFull)
     if ($pathFileName -ne $normalizedName) {
         return $false
     }
 
-    $pathSegments = $ExecutablePath -split '[\\/]'
-    $hasMouseMuxDirectory = $false
+    $allowedDirectorySegments = @('MouseMux', 'MouseMux V3', 'MouseMuxV3')
+    $pathSegments = $pathFull -split '[\\/]'
     foreach ($segment in $pathSegments) {
-        if ($segment -match '(?i)^MouseMux(?:\s+V?3)?$' -or $segment -match '(?i)^MouseMux[ ._-]') {
-            $hasMouseMuxDirectory = $true
-            break
-        }
-    }
-
-    if ($hasMouseMuxDirectory) {
-        return $true
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($CommandLine)) {
-        $quotedExecutable = [regex]::Escape($ExecutablePath)
-        if ($CommandLine -match $quotedExecutable -and $CommandLine -match '(?i)MouseMux') {
+        if ($segment -in $allowedDirectorySegments) {
             return $true
         }
     }
@@ -194,6 +231,7 @@ function Test-MouseMuxProcessIdentity {
 
 Export-ModuleMember -Function @(
     'Resolve-MmcMcpUri',
+    'Test-MmcPathWithinRoot',
     'Remove-CodexMouseMuxBlock',
     'Set-CodexMouseMuxBlock',
     'Test-MouseMuxProcessIdentity'

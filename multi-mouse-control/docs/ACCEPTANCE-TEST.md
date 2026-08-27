@@ -11,6 +11,8 @@ Do not use the setup for normal work until every required item passes.
 - [ ] Input Mapper MCP uses `127.0.0.1`, `localhost`, or `::1` on port `41760`.
 - [ ] Input Mapper **Arm MCP** is off.
 - [ ] The Codex MouseMux server uses prompt approval.
+- [ ] The retired `MultiMouseControl-ForceStop` elevated task is absent.
+- [ ] `FORCE STOP - MouseMux` targets PowerShell directly and does not invoke `schtasks.exe`.
 - [ ] `Verify-MultiMouseControl.ps1` has no unexplained critical failure.
 
 ## Disposable sandbox
@@ -41,15 +43,17 @@ Do not use the setup for normal work until every required item passes.
 - [ ] Restart MouseMux and restore the sandbox lock.
 - [ ] Re-arm MCP.
 - [ ] Double-click `FORCE STOP - MouseMux`.
-- [ ] Confirm verified MouseMux processes stop.
+- [ ] Confirm verified current-user MouseMux processes stop.
 - [ ] Confirm an unrelated application remains running.
-- [ ] Review the force-stop log for the expected process IDs.
+- [ ] Confirm an unknown process on port `41760`, if present in a controlled negative test, is logged and not stopped.
+- [ ] Review `%LOCALAPPDATA%\Troon\MultiMouseControl\logs\force-stop.log` for the expected process IDs.
 
 ## Negative boundaries
 
 - [ ] Attempt to configure an MCP URL using a LAN address and confirm the script rejects it.
 - [ ] Attempt to configure port `41761` and confirm the script rejects it.
 - [ ] Attempt to configure a URL with credentials, a query, or a fragment and confirm the script rejects it.
+- [ ] Attempt to configure an enabled tool name containing a newline or bracket and confirm the script rejects it.
 - [ ] Confirm ChatGPT web is not assumed to read the local Codex configuration.
 - [ ] Confirm no administrator prompt, credential dialog, financial application, or production system was used during testing.
 

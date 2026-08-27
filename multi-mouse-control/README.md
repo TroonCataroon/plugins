@@ -21,8 +21,8 @@ Agent seat, magenta, locked to one approved window
 This package deliberately separates convenience from containment.
 
 - MouseMux's built-in `Ctrl+Alt+F12` exit is the primary emergency control.
-- The desktop shortcut named `FORCE STOP - MouseMux` is a separate elevated fallback.
-- The fallback stops only processes that pass strict MouseMux identity checks.
+- The desktop shortcut named `FORCE STOP - MouseMux` is a separate fallback that is non-elevated.
+- The fallback runs only as the signed-in user and stops only processes that pass strict MouseMux path and ownership checks.
 - A process is never stopped merely because it owns TCP port `41760`.
 - The MCP URL must use `127.0.0.1`, `localhost`, or `::1` on port `41760`.
 - Codex starts with prompt approval for MouseMux tools.
@@ -36,8 +36,7 @@ Read [docs/SECURITY.md](docs/SECURITY.md) before enabling live actuation.
 - Pinned MouseMux V3 `3.0.19` installer download from the official MouseMux file host
 - Authenticode signature validation before launch
 - Per-user support files under `%LOCALAPPDATA%\Troon\MultiMouseControl`
-- On-demand elevated force-stop scheduled task
-- Desktop emergency fallback shortcut
+- Current-user emergency fallback shortcut
 - Loopback-only Codex MCP configuration writer with backup and atomic replacement
 - Physical input-device inventory
 - Disposable Notepad agent sandbox launcher
@@ -48,12 +47,12 @@ Read [docs/SECURITY.md](docs/SECURITY.md) before enabling live actuation.
 ## Requirements
 
 - Windows 10 or Windows 11
-- Administrator approval for installation and emergency task registration
 - MouseMux V3 with the Input Mapper application available
 - Codex, Cursor, or ChatGPT desktop when using the local MCP configuration
 - PowerShell 5.1 or newer for installation
+- Administrator approval only when the official MouseMux installer itself requests it
 
-ChatGPT web does not read the local Codex MCP configuration. Use the desktop application, Codex CLI, or an IDE integration that reads `~/.codex/config.toml`.
+The support package does not create an elevated scheduled task. ChatGPT web does not read the local Codex MCP configuration. Use the desktop application, Codex CLI, or an IDE integration that reads `~/.codex/config.toml`.
 
 ## Install
 
@@ -64,7 +63,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\Install-MultiMouseControl.ps1
 ```
 
-The script requests elevation, copies the support package, downloads the pinned official installer, verifies its Authenticode signature, registers the force-stop task, creates the fallback shortcut, and opens the MouseMux installer.
+The script copies the support package into the current user's local application data, downloads the pinned official installer, verifies its Authenticode signature, creates the current-user fallback shortcut, and opens the MouseMux installer. The shortcut is non-elevated. The third-party installer handles any administrator prompt that it requires.
 
 To install only the support package when MouseMux is already installed:
 
@@ -130,6 +129,8 @@ Do not guess an `enabled_tools` allowlist. First inspect the tools exposed by th
   -EnabledTool "approved_tool_one", "approved_tool_two"
 ```
 
+Tool names are validated before they are written to TOML. Newlines, quotes, brackets, whitespace, and other configuration-injection characters are rejected.
+
 ## Verify
 
 Run automated checks:
@@ -139,6 +140,8 @@ Run automated checks:
 & "$env:LOCALAPPDATA\Troon\MultiMouseControl\scripts\Verify-MultiMouseControl.ps1"
 ```
 
+The verifier checks that no retired elevated task remains, the fallback shortcut targets PowerShell directly, the MCP endpoint is loopback-only, approval mode is prompt, and any process on port `41760` has a trusted MouseMux identity owned by the signed-in user.
+
 Then complete every step in [docs/ACCEPTANCE-TEST.md](docs/ACCEPTANCE-TEST.md). Automated checks cannot prove cursor color, physical device assignment, window locking, or the current Arm MCP state.
 
 ## Emergency controls
@@ -147,17 +150,20 @@ Then complete every step in [docs/ACCEPTANCE-TEST.md](docs/ACCEPTANCE-TEST.md). 
 
 Press `Ctrl+Alt+F12`. This is MouseMux's own emergency exit.
 
-### Elevated fallback
+### Current-user fallback
 
 Double-click `FORCE STOP - MouseMux` on the desktop.
 
-The fallback scheduled task:
+The fallback intentionally does not elevate. This prevents a user-writable script from becoming a persistent administrator execution path. It:
 
 1. Enumerates Windows processes.
-2. Applies strict MouseMux process-name and executable-path checks.
-3. Verifies the owner of port `41760` before adding it to the stop set.
-4. Refuses to stop an unverified port owner.
-5. Writes an audit log under `%ProgramData%\Troon\MultiMouseControl\logs`.
+2. Requires an exact known MouseMux executable name.
+3. Requires an exact `MouseMux`, `MouseMux V3`, or `MouseMuxV3` path segment.
+4. Requires the process to be owned by the signed-in user.
+5. Refuses to stop an unknown or other-user process on port `41760`.
+6. Writes an audit log under `%LOCALAPPDATA%\Troon\MultiMouseControl\logs`.
+
+If the fallback cannot stop a process because it belongs to another account or requires greater privileges, use Windows Task Manager with explicit administrator approval after inspecting the process path and publisher.
 
 ## Remove
 
@@ -168,7 +174,7 @@ Remove the support package and its Codex configuration:
   -RemoveMcpConfiguration
 ```
 
-This removes the scheduled task, shortcut, support files, and MouseMux MCP block. It does not uninstall the third-party MouseMux application.
+This removes the shortcut, support files, and MouseMux MCP block. It also attempts to remove the retired `MultiMouseControl-ForceStop` task if an earlier prerelease created it. Failure to remove that legacy task produces a warning instead of silently elevating. The third-party MouseMux application is not uninstalled.
 
 ## Development tests
 
@@ -179,4 +185,4 @@ Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser
 .\scripts\Invoke-Tests.ps1
 ```
 
-Tests cover loopback URL validation, Codex TOML replacement and idempotence, strict process identity, required package files, manifest wiring, installer pinning, shortcut separation, and security documentation.
+Tests cover loopback URL validation, canonical path containment, Codex TOML replacement and idempotence, tool-name injection rejection, fail-closed process identity, required package files, manifest wiring, installer pinning, non-elevated shortcut behavior, and security documentation.

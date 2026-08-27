@@ -8,16 +8,11 @@ param(
 
     [switch]$SkipMouseMuxInstaller,
 
-    [switch]$SkipScheduledTask,
-
     [switch]$SkipDesktopShortcut,
 
     [switch]$NoLaunch,
 
-    [switch]$ForceDownload,
-
-    [Parameter(DontShow)]
-    [switch]$Elevated
+    [switch]$ForceDownload
 )
 
 Set-StrictMode -Version Latest
@@ -27,54 +22,32 @@ if ($env:OS -ne 'Windows_NT') {
     throw 'Multi Mouse Control can only be installed on Windows 10 or Windows 11.'
 }
 
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = [Security.Principal.WindowsPrincipal]::new($identity)
-$isAdministrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$modulePath = Join-Path $PSScriptRoot 'MultiMouseControl.Core.psm1'
+Import-Module $modulePath -Force -ErrorAction Stop
 
-if (-not $isAdministrator) {
-    if ($Elevated) {
-        throw 'Elevation was requested, but the process is not running as an administrator.'
-    }
-
-    $quotedScript = '"{0}"' -f $PSCommandPath.Replace('"', '\"')
-    $quotedInstallRoot = '"{0}"' -f $InstallRoot.Replace('"', '\"')
-    $quotedInstallerUrl = '"{0}"' -f $InstallerUrl.Replace('"', '\"')
-    $elevationArguments = @(
-        '-NoProfile',
-        '-ExecutionPolicy Bypass',
-        '-File',
-        $quotedScript,
-        '-InstallRoot',
-        $quotedInstallRoot,
-        '-InstallerUrl',
-        $quotedInstallerUrl,
-        '-Elevated'
-    )
-
-    foreach ($switchName in @('SkipMouseMuxInstaller', 'SkipScheduledTask', 'SkipDesktopShortcut', 'NoLaunch', 'ForceDownload')) {
-        if ($PSBoundParameters.ContainsKey($switchName) -and $PSBoundParameters[$switchName]) {
-            $elevationArguments += "-$switchName"
-        }
-    }
-
-    Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList ($elevationArguments -join ' ')
-    return
-}
-
-$installRootFull = [IO.Path]::GetFullPath($InstallRoot)
-$localAppDataFull = [IO.Path]::GetFullPath($env:LOCALAPPDATA)
-if (-not $installRootFull.StartsWith($localAppDataFull, [StringComparison]::OrdinalIgnoreCase)) {
+$installRootFull = [System.IO.Path]::GetFullPath($InstallRoot)
+$localAppDataFull = [System.IO.Path]::GetFullPath($env:LOCALAPPDATA)
+if (-not (Test-MmcPathWithinRoot -Path $installRootFull -Root $localAppDataFull)) {
     throw "InstallRoot must be inside LOCALAPPDATA. Requested path: $installRootFull"
 }
 
+$trimCharacters = [char[]]@(
+    [System.IO.Path]::DirectorySeparatorChar,
+    [System.IO.Path]::AltDirectorySeparatorChar
+)
+$installRootLeaf = [System.IO.Path]::GetFileName($installRootFull.TrimEnd($trimCharacters))
+if ($installRootLeaf -ne 'MultiMouseControl') {
+    throw 'InstallRoot must end with the directory name MultiMouseControl.'
+}
+
 $installerUri = $null
-if (-not [Uri]::TryCreate($InstallerUrl, [UriKind]::Absolute, [ref]$installerUri)) {
+if (-not [System.Uri]::TryCreate($InstallerUrl, [System.UriKind]::Absolute, [ref]$installerUri)) {
     throw 'InstallerUrl must be an absolute URI.'
 }
 
 if (
     $installerUri.Scheme -ne 'https' -or
-    $installerUri.Host -ne 'files.mousemux.com' -or
+    -not $installerUri.Host.Equals('files.mousemux.com', [System.StringComparison]::OrdinalIgnoreCase) -or
     $installerUri.AbsolutePath -ne '/files/setup/mousemux-v3-setup-3.0.19.exe' -or
     -not [string]::IsNullOrEmpty($installerUri.UserInfo) -or
     -not [string]::IsNullOrEmpty($installerUri.Query) -or
@@ -94,7 +67,7 @@ foreach ($directory in $installDirectories) {
     [void](New-Item -ItemType Directory -Path $directory -Force)
 }
 
-if (-not [IO.Path]::GetFullPath($sourceRoot).Equals($installRootFull, [StringComparison]::OrdinalIgnoreCase)) {
+if (-not [System.IO.Path]::GetFullPath($sourceRoot).Equals($installRootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
     foreach ($itemName in @('.cursor-plugin', 'agents', 'skills', 'scripts', 'config', 'docs', 'README.md', 'CHANGELOG.md', 'LICENSE')) {
         $sourcePath = Join-Path $sourceRoot $itemName
         if (Test-Path -LiteralPath $sourcePath) {
@@ -103,52 +76,18 @@ if (-not [IO.Path]::GetFullPath($sourceRoot).Equals($installRootFull, [StringCom
     }
 }
 
-$taskName = 'MultiMouseControl-ForceStop'
 $forceStopPath = Join-Path $installRootFull 'scripts\Force-Stop-MouseMux.ps1'
-$desktopPath = [Environment]::GetFolderPath('Desktop')
+$desktopPath = [System.Environment]::GetFolderPath('Desktop')
 $forceStopShortcutPath = Join-Path $desktopPath 'FORCE STOP - MouseMux.lnk'
 
-if (-not $SkipScheduledTask) {
-    Import-Module ScheduledTasks -ErrorAction Stop
-    $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $taskActionParameters = @{
-        Execute = $windowsPowerShell
-        Argument = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Quiet' -f $forceStopPath
-    }
-    $taskAction = New-ScheduledTaskAction @taskActionParameters
-
-    $taskPrincipalParameters = @{
-        UserId = $identity.Name
-        LogonType = 'Interactive'
-        RunLevel = 'Highest'
-    }
-    $taskPrincipal = New-ScheduledTaskPrincipal @taskPrincipalParameters
-
-    $taskSettingsParameters = @{
-        AllowStartIfOnBatteries = $true
-        DontStopIfGoingOnBatteries = $true
-        ExecutionTimeLimit = New-TimeSpan -Minutes 2
-    }
-    $taskSettings = New-ScheduledTaskSettingsSet @taskSettingsParameters
-
-    $registrationParameters = @{
-        TaskName = $taskName
-        Action = $taskAction
-        Principal = $taskPrincipal
-        Settings = $taskSettings
-        Description = 'Strictly stop verified MouseMux processes and the verified Input Mapper port owner.'
-        Force = $true
-    }
-    Register-ScheduledTask @registrationParameters | Out-Null
-}
-
 if (-not $SkipDesktopShortcut) {
+    $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($forceStopShortcutPath)
-    $shortcut.TargetPath = Join-Path $env:SystemRoot 'System32\schtasks.exe'
-    $shortcut.Arguments = '/Run /TN "MultiMouseControl-ForceStop"'
+    $shortcut.TargetPath = $windowsPowerShell
+    $shortcut.Arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Quiet' -f $forceStopPath
     $shortcut.WorkingDirectory = $installRootFull
-    $shortcut.Description = 'Emergency fallback that stops only verified MouseMux processes.'
+    $shortcut.Description = 'Current-user emergency fallback that stops only verified MouseMux processes.'
     $shortcut.IconLocation = (Join-Path $env:SystemRoot 'System32\shell32.dll') + ',131'
     $shortcut.Save()
 }
@@ -157,7 +96,7 @@ $installerPath = Join-Path $installRootFull 'downloads\mousemux-v3-setup-3.0.19.
 $installerState = $null
 if (-not $SkipMouseMuxInstaller) {
     if ($ForceDownload -or -not (Test-Path -LiteralPath $installerPath)) {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $installerUri.AbsoluteUri -OutFile $installerPath -UseBasicParsing
     }
 
@@ -178,20 +117,21 @@ if (-not $SkipMouseMuxInstaller) {
     }
 }
 
+$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $installationState = [ordered]@{
     package = 'multi-mouse-control'
     packageVersion = '1.0.0'
-    installedAtUtc = [DateTime]::UtcNow.ToString('o')
+    installedAtUtc = [System.DateTime]::UtcNow.ToString('o')
     installedBy = $identity.Name
     installRoot = $installRootFull
-    forceStopTask = if ($SkipScheduledTask) { $null } else { $taskName }
+    forceStopMode = 'current-user'
     forceStopShortcut = if ($SkipDesktopShortcut) { $null } else { $forceStopShortcutPath }
     mouseMuxInstaller = $installerState
 }
 
 $statePath = Join-Path $installRootFull 'state\installation.json'
 $stateJson = $installationState | ConvertTo-Json -Depth 6
-[IO.File]::WriteAllText($statePath, $stateJson, [Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($statePath, $stateJson, [System.Text.UTF8Encoding]::new($false))
 
 if (-not $SkipMouseMuxInstaller -and -not $NoLaunch) {
     Start-Process -FilePath $installerPath
@@ -202,7 +142,7 @@ Write-Host 'Multi Mouse Control package installed.' -ForegroundColor Green
 Write-Host "Install root: $installRootFull"
 Write-Host 'Primary MouseMux emergency exit: Ctrl+Alt+F12'
 if (-not $SkipDesktopShortcut) {
-    Write-Host "Elevated fallback: $forceStopShortcutPath"
+    Write-Host "Current-user fallback: $forceStopShortcutPath"
 }
 Write-Host ''
 Write-Host 'Next steps:'

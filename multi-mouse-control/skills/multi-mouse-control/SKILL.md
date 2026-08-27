@@ -16,8 +16,9 @@ Set up a Windows workstation so the physical user retains an independent mouse a
 3. Use `default_tools_approval_mode = "prompt"` during initial setup.
 4. Never treat MouseMux window locking as a Windows security sandbox.
 5. Never interact with credentials, administrator prompts, financial applications, production systems, or another user's window during acceptance testing.
-6. Use MouseMux's built-in `Ctrl+Alt+F12` exit first. Use `FORCE STOP - MouseMux` only as the elevated fallback.
+6. Use MouseMux's built-in `Ctrl+Alt+F12` exit first. Use `FORCE STOP - MouseMux` only as the separate current-user fallback.
 7. Never stop an unknown process merely because it owns port `41760`.
+8. Never create an elevated scheduled task that executes the support scripts from user-writable storage.
 
 ## Workflow
 
@@ -36,6 +37,8 @@ Set up a Windows workstation so the physical user retains an independent mouse a
 
 Do not guess Input Mapper tool names. First inspect the tools exposed by the installed version. Then rerun `Configure-MouseMuxMcp.ps1` with `-EnabledTool` values that are required for the approved workflow. Keep shell, process, file operation, power, and unrestricted program-launch tools disabled unless the user explicitly approves a sandboxed use case.
 
+Tool names must pass the configuration writer's identifier validation. Do not bypass it to insert raw TOML.
+
 ## Troubleshooting order
 
 1. Confirm MouseMux is running.
@@ -43,8 +46,9 @@ Do not guess Input Mapper tool names. First inspect the tools exposed by the ins
 3. Confirm **Arm MCP** is intentionally on or off for the current test step.
 4. Confirm the virtual user is locked to the expected window.
 5. Confirm `~/.codex/config.toml` contains one `[mcp_servers.mousemux]` table.
-6. Run `Verify-MultiMouseControl.ps1` and inspect the JSON report.
-7. If the port owner is unverified, disarm MCP and investigate it. Do not terminate it automatically.
+6. Confirm the retired elevated scheduled task is absent.
+7. Run `Verify-MultiMouseControl.ps1` and inspect the JSON report.
+8. If the port owner is unverified, disarm MCP and investigate it. Do not terminate it automatically.
 
 ## Removal
 

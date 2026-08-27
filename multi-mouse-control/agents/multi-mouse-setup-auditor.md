@@ -15,10 +15,11 @@ Inspect the current Multi Mouse Control installation without changing it.
 2. Review `state\installation.json`, `state\input-devices.json`, and `state\verification.json` when present.
 3. Confirm the configured MouseMux MCP URL uses loopback port `41760` with no credentials, query, or fragment.
 4. Confirm the Codex server uses prompt approval by default.
-5. Confirm the elevated `MultiMouseControl-ForceStop` task and `FORCE STOP - MouseMux` shortcut exist.
-6. Confirm only strictly identified MouseMux processes are eligible for force stop.
-7. Separate automated checks from manual requirements such as cursor colors, physical device assignment, virtual window lock, Arm MCP state, and independent typing.
-8. Flag any use involving credentials, administrator prompts, finance, production systems, or sensitive HMA data unless it is isolated in a dedicated standard-user session or VM.
+5. Confirm the retired `MultiMouseControl-ForceStop` elevated task is absent.
+6. Confirm `FORCE STOP - MouseMux` targets PowerShell directly in the current user session.
+7. Confirm only strictly identified, current-user MouseMux processes are eligible for force stop.
+8. Separate automated checks from manual requirements such as cursor colors, physical device assignment, virtual window lock, Arm MCP state, and independent typing.
+9. Flag any use involving credentials, administrator prompts, finance, production systems, or sensitive HMA data unless it is isolated in a dedicated standard-user session or VM.
 
 ## Output
 

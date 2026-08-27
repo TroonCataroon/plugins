@@ -5,7 +5,7 @@ param(
     [ValidateRange(1, 65535)]
     [int]$Port = 41760,
 
-    [string]$LogPath = $(Join-Path $env:ProgramData 'Troon\MultiMouseControl\logs\force-stop.log'),
+    [string]$LogPath = $(Join-Path $env:LOCALAPPDATA 'Troon\MultiMouseControl\logs\force-stop.log'),
 
     [switch]$Quiet
 )
@@ -16,9 +16,33 @@ $ErrorActionPreference = 'Stop'
 $modulePath = Join-Path $PSScriptRoot 'MultiMouseControl.Core.psm1'
 Import-Module $modulePath -Force -ErrorAction Stop
 
-$timestamp = [DateTime]::UtcNow.ToString('o')
+function Get-MmcProcessOwnerName {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$ProcessRecord
+    )
+
+    try {
+        $ownerResult = Invoke-CimMethod -InputObject $ProcessRecord -MethodName GetOwner -ErrorAction Stop
+        if ($ownerResult.ReturnValue -ne 0 -or [string]::IsNullOrWhiteSpace([string]$ownerResult.User)) {
+            return $null
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string]$ownerResult.Domain)) {
+            return [string]$ownerResult.User
+        }
+
+        return '{0}\{1}' -f $ownerResult.Domain, $ownerResult.User
+    } catch {
+        return $null
+    }
+}
+
+$timestamp = [System.DateTime]::UtcNow.ToString('o')
 $messages = [System.Collections.Generic.List[string]]::new()
 $trustedProcessIds = [System.Collections.Generic.HashSet[int]]::new()
+$currentIdentity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
 try {
     $processes = @(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop)
@@ -33,11 +57,22 @@ foreach ($process in $processes) {
         ExecutablePath = [string]$process.ExecutablePath
         CommandLine = [string]$process.CommandLine
     }
-    $trusted = Test-MouseMuxProcessIdentity @identityParameters
-
-    if ($trusted) {
-        [void]$trustedProcessIds.Add([int]$process.ProcessId)
+    if (-not (Test-MouseMuxProcessIdentity @identityParameters)) {
+        continue
     }
+
+    $ownerName = Get-MmcProcessOwnerName -ProcessRecord $process
+    if ([string]::IsNullOrWhiteSpace($ownerName)) {
+        $messages.Add("$timestamp WARN Verified MouseMux identity PID $($process.ProcessId) has an unreadable owner. It was not stopped.")
+        continue
+    }
+
+    if (-not $ownerName.Equals($currentIdentity, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $messages.Add("$timestamp WARN Verified MouseMux identity PID $($process.ProcessId) belongs to '$ownerName', not '$currentIdentity'. It was not stopped.")
+        continue
+    }
+
+    [void]$trustedProcessIds.Add([int]$process.ProcessId)
 }
 
 $listenerProcessIds = @()
@@ -51,28 +86,15 @@ try {
 }
 
 foreach ($listenerPid in $listenerProcessIds) {
-    $listenerProcess = $processes | Where-Object { [int]$_.ProcessId -eq [int]$listenerPid } | Select-Object -First 1
-    if ($null -eq $listenerProcess) {
-        $messages.Add("$timestamp WARN Port $Port is owned by PID $listenerPid, but its process identity could not be read. It was not stopped.")
-        continue
-    }
-
-    $listenerIdentityParameters = @{
-        Name = [string]$listenerProcess.Name
-        ExecutablePath = [string]$listenerProcess.ExecutablePath
-        CommandLine = [string]$listenerProcess.CommandLine
-    }
-    $listenerIsMouseMux = Test-MouseMuxProcessIdentity @listenerIdentityParameters
-
-    if ($listenerIsMouseMux) {
-        [void]$trustedProcessIds.Add([int]$listenerPid)
-    } else {
-        $messages.Add("$timestamp WARN Port $Port is owned by unverified process '$($listenerProcess.Name)' PID $listenerPid. It was not stopped.")
+    if (-not $trustedProcessIds.Contains([int]$listenerPid)) {
+        $listenerProcess = $processes | Where-Object { [int]$_.ProcessId -eq [int]$listenerPid } | Select-Object -First 1
+        $listenerName = if ($null -ne $listenerProcess) { [string]$listenerProcess.Name } else { 'unknown' }
+        $messages.Add("$timestamp WARN Port $Port is owned by unverified or other-user process '$listenerName' PID $listenerPid. It was not stopped.")
     }
 }
 
 if ($trustedProcessIds.Count -eq 0) {
-    $messages.Add("$timestamp INFO No verified MouseMux process was running.")
+    $messages.Add("$timestamp INFO No verified current-user MouseMux process was running.")
 }
 
 foreach ($processId in @($trustedProcessIds)) {
