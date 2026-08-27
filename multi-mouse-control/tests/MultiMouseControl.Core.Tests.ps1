@@ -30,6 +30,32 @@ Describe "Resolve-MmcMcpUri" {
     }
 }
 
+Describe "Test-MmcPathWithinRoot" {
+    It "accepts a path inside the requested root" {
+        Test-MmcPathWithinRoot `
+            -Path "C:\Users\Troon\AppData\Local\Troon\MultiMouseControl" `
+            -Root "C:\Users\Troon\AppData\Local" | Should -BeTrue
+    }
+
+    It "accepts the root itself" {
+        Test-MmcPathWithinRoot `
+            -Path "C:\Users\Troon\AppData\Local" `
+            -Root "C:\Users\Troon\AppData\Local" | Should -BeTrue
+    }
+
+    It "rejects a sibling whose name only shares the root prefix" {
+        Test-MmcPathWithinRoot `
+            -Path "C:\Users\Troon\AppData\LocalEvil\MultiMouseControl" `
+            -Root "C:\Users\Troon\AppData\Local" | Should -BeFalse
+    }
+
+    It "rejects a path that escapes through parent traversal" {
+        Test-MmcPathWithinRoot `
+            -Path "C:\Users\Troon\AppData\Local\..\Roaming\MultiMouseControl" `
+            -Root "C:\Users\Troon\AppData\Local" | Should -BeFalse
+    }
+}
+
 Describe "Set-CodexMouseMuxBlock" {
     It "adds one current Codex MCP block to an empty configuration" {
         $updated = Set-CodexMouseMuxBlock -Content "" -Url "http://127.0.0.1:41760/mcp"
@@ -78,6 +104,15 @@ url = "https://example.invalid/mcp"
 
         $updated | Should -Match '(?m)^enabled_tools = \["graph_read", "virtual_user_type_text"\]$'
     }
+
+    It "rejects tool names that could inject TOML" {
+        {
+            Set-CodexMouseMuxBlock `
+                -Content "" `
+                -Url "http://127.0.0.1:41760/mcp" `
+                -EnabledTool @("graph_read", "bad`n[mcp_servers.evil]")
+        } | Should -Throw
+    }
 }
 
 Describe "Remove-CodexMouseMuxBlock" {
@@ -101,15 +136,29 @@ url = "https://example.invalid/mcp"
 }
 
 Describe "Test-MouseMuxProcessIdentity" {
-    It "accepts a MouseMux executable under a MouseMux installation directory" {
+    It "accepts a MouseMux executable under an exact MouseMux installation directory" {
         Test-MouseMuxProcessIdentity `
             -Name "MouseMux.exe" `
             -ExecutablePath "C:\Program Files\MouseMux V3\MouseMux.exe" `
             -CommandLine '"C:\Program Files\MouseMux V3\MouseMux.exe"' | Should -BeTrue
     }
 
-    It "accepts a known exact MouseMux process name when Windows withholds the path" {
-        Test-MouseMuxProcessIdentity -Name "MouseMuxAppHost.exe" -ExecutablePath $null -CommandLine $null | Should -BeTrue
+    It "fails closed when Windows withholds the executable path" {
+        Test-MouseMuxProcessIdentity -Name "MouseMuxAppHost.exe" -ExecutablePath $null -CommandLine $null | Should -BeFalse
+    }
+
+    It "rejects a lookalike installation directory" {
+        Test-MouseMuxProcessIdentity `
+            -Name "MouseMux.exe" `
+            -ExecutablePath "C:\Temp\MouseMux-evil\MouseMux.exe" `
+            -CommandLine '"C:\Temp\MouseMux-evil\MouseMux.exe"' | Should -BeFalse
+    }
+
+    It "does not let command-line text rescue an untrusted path" {
+        Test-MouseMuxProcessIdentity `
+            -Name "MouseMux.exe" `
+            -ExecutablePath "C:\Temp\Tools\MouseMux.exe" `
+            -CommandLine '"C:\Temp\Tools\MouseMux.exe" --product MouseMux' | Should -BeFalse
     }
 
     It "rejects an unrelated process even when its command line mentions MouseMux" {

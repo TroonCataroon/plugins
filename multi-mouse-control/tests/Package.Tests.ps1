@@ -45,6 +45,26 @@ Describe "PowerShell package" {
         $installerScript | Should -Not -Match 'Hotkey\s*=\s*["'']CTRL\+ALT\+F12["'']'
     }
 
+    It "does not create a highest-privilege task from user-writable files" {
+        $installerScript = Get-Content -Raw (Join-Path $script:PluginRoot "scripts\Install-MultiMouseControl.ps1")
+        $installerScript | Should -Not -Match 'Register-ScheduledTask'
+        $installerScript | Should -Not -Match 'RunLevel\s*=\s*["'']Highest["'']'
+        $installerScript | Should -Not -Match 'schtasks\.exe'
+    }
+
+    It "creates a current-user force-stop shortcut" {
+        $installerScript = Get-Content -Raw (Join-Path $script:PluginRoot "scripts\Install-MultiMouseControl.ps1")
+        $installerScript | Should -Match 'Force-Stop-MouseMux\.ps1'
+        $installerScript | Should -Match 'powershell\.exe'
+    }
+
+    It "uses canonical path containment instead of a string-prefix check" {
+        $installerScript = Get-Content -Raw (Join-Path $script:PluginRoot "scripts\Install-MultiMouseControl.ps1")
+        $uninstallerScript = Get-Content -Raw (Join-Path $script:PluginRoot "scripts\Uninstall-MultiMouseControl.ps1")
+        $installerScript | Should -Match 'Test-MmcPathWithinRoot'
+        $uninstallerScript | Should -Match 'Test-MmcPathWithinRoot'
+    }
+
     It "requires strict process identity before force-stopping a port owner" {
         $forceStop = Get-Content -Raw (Join-Path $script:PluginRoot "scripts\Force-Stop-MouseMux.ps1")
         $forceStop | Should -Match 'Test-MouseMuxProcessIdentity'
@@ -76,10 +96,12 @@ Describe "Cursor plugin definition" {
 }
 
 Describe "Safety documentation" {
-    It "documents MouseMux built-in emergency exit and the separate force-stop fallback" {
+    It "documents MouseMux built-in emergency exit and the separate non-elevated fallback" {
         $readme = Get-Content -Raw (Join-Path $script:PluginRoot "README.md")
         $readme | Should -Match 'Ctrl\+Alt\+F12'
         $readme | Should -Match 'FORCE STOP - MouseMux'
+        $readme | Should -Match 'non-elevated'
+        $readme | Should -Not -Match 'Elevated fallback'
     }
 
     It "states that window locking is not a Windows security boundary" {
