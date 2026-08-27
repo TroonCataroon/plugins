@@ -26,7 +26,7 @@ jobs:
       - name: Install Pester
         run: |
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module Pester -MinimumVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
 
       - name: Run PowerShell tests
         run: |

@@ -11,14 +11,15 @@ Official Cursor plugins for popular developer tools, frameworks, and SaaS produc
 | `create-plugin` | [Create Plugin](create-plugin/) | Cursor | Developer Tools | Scaffold and validate new Cursor plugins. |
 | `agent-compatibility` | [Agent Compatibility](agent-compatibility/) | Cursor | Developer Tools | CLI-backed repo compatibility scans plus Cursor agents that audit startup, validation, and docs against reality. |
 | `cli-for-agent` | [CLI for Agents](cli-for-agent/) | Cursor | Developer Tools | Patterns for designing CLIs that coding agents can run reliably: flags, help with examples, pipelines, errors, idempotency, dry-run. |
+| `multi-mouse-control` | [Multi Mouse Control](multi-mouse-control/) | TroonCataroon | Developer Tools | Install, configure, verify, and safely operate MouseMux Input Mapper MCP for independent human and AI cursors on Windows. |
 
-Author values match each plugin’s `plugin.json` `author.name` (Cursor lists `plugins@cursor.com` in the manifest).
+Author values match each plugin's `plugin.json` `author.name`.
 
 ## Repository structure
 
 This is a multi-plugin marketplace repository. The root `.cursor-plugin/marketplace.json` lists all plugins, and each plugin has its own manifest:
 
-```
+```text
 plugins/
 ├── .cursor-plugin/
 │   └── marketplace.json       # Marketplace manifest (lists all plugins)
