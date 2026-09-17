@@ -47,7 +47,7 @@ Windows PowerShell:
 macOS/Linux:
 
 ```bash
-./scripts/sync-upstream.sh
+bash ./scripts/sync-upstream.sh
 ```
 
 The bootstrap scripts clone the upstream repository into the ignored `.upstream/` directory, detach it at the recorded commit, and install the upstream Bun dependencies.
@@ -67,9 +67,9 @@ Do not replace the upstream Codex plugin with this adapter. This portable packag
 
 ChatGPT cannot directly launch a local stdio MCP server from the cloud. Use OpenAI Secure MCP Tunnel to bridge ChatGPT to the upstream stdio server running beside Blender.
 
-1. Run `scripts/sync-upstream.ps1` or `scripts/sync-upstream.sh`.
+1. Run `scripts/sync-upstream.ps1` or `bash scripts/sync-upstream.sh`.
 2. Set `BLENDER_EXECUTABLE` or put Blender on `PATH`.
-3. Verify the MCP launches with `scripts/run-mcp.ps1` or `scripts/run-mcp.sh`.
+3. Verify the MCP launches with `scripts/run-mcp.ps1` or `bash scripts/run-mcp.sh`.
 4. Create an OpenAI Secure MCP Tunnel that invokes that same local MCP command.
 5. In ChatGPT developer mode, create/connect a plugin using the tunnel.
 6. Record the returned `plugin_asdk_app...` ID in this integration once assigned.
