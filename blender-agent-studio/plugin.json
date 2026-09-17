@@ -19,7 +19,6 @@
     "rendering",
     "3d"
   ],
-  "skills": "./skills/",
   "extensions": {
     "com.openai": {
       "interface": {
