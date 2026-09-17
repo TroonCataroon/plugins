@@ -1,0 +1,46 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "blender-agent-studio",
+  "version": "0.6.2-troon.1",
+  "description": "Parallel ChatGPT and Codex integration for the upstream Blender Agent Studio workflows, pinned to a verified upstream revision.",
+  "author": {
+    "name": "TroonCataroon",
+    "url": "https://github.com/TroonCataroon"
+  },
+  "homepage": "https://github.com/TroonCataroon/plugins/tree/main/blender-agent-studio",
+  "repository": "https://github.com/TroonCataroon/plugins",
+  "license": "MIT",
+  "keywords": [
+    "blender",
+    "chatgpt",
+    "codex",
+    "agent-skills",
+    "mcp",
+    "rendering",
+    "3d"
+  ],
+  "skills": "./skills/",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Blender Agent Studio",
+        "shortDescription": "Build, inspect, render, and validate Blender work",
+        "longDescription": "Troon-maintained parallel integration for Blender Agent Studio. It keeps the upstream Codex plugin authoritative while exposing the same Blender MCP workflow to ChatGPT through a registered MCP app connection.",
+        "developerName": "TroonCataroon, based on Blender Agent Studio by Bars",
+        "category": "Developer Tools",
+        "websiteURL": "https://github.com/ifBars/blender-agent-studio",
+        "capabilities": [
+          "Interactive",
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "Use Blender Agent Studio to build this Blender asset and preserve reproducible source.",
+          "Inspect this Blender asset, render evidence, repair the highest-impact defect, and verify the result.",
+          "Create or refine this Blender scene using the registered Blender Agent Studio tools."
+        ],
+        "brandColor": "#E87D0D"
+      }
+    }
+  }
+}
