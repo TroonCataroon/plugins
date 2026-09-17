@@ -1,0 +1,18 @@
+{
+  "upstream": {
+    "repository": "https://github.com/ifBars/blender-agent-studio.git",
+    "owner": "ifBars",
+    "project": "blender-agent-studio",
+    "commit": "422dae578005e912caa745a723fc300931990164",
+    "pluginVersion": "0.6.2+codex.20260914085919",
+    "license": "MIT",
+    "verifiedOn": "2026-09-16"
+  },
+  "integration": {
+    "owner": "TroonCataroon",
+    "mode": "adapter",
+    "policy": "Preserve upstream implementation and provenance. Keep Troon-specific ChatGPT transport, registration, packaging, and routing changes in this adapter unless a change is intentionally contributed upstream.",
+    "publicChatGPTTransport": "streamable-http",
+    "developmentChatGPTTransport": "secure-mcp-tunnel-to-upstream-stdio"
+  }
+}
