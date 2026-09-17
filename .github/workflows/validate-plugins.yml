@@ -4,8 +4,11 @@ on:
   pull_request:
     paths:
       - ".cursor-plugin/marketplace.json"
+      - ".agents/plugins/marketplace.json"
       - "**/plugin.json"
       - "schemas/**"
+      - "scripts/validate-plugins.mjs"
+      - "scripts/validate-openai-plugins.mjs"
 
 jobs:
   validate:
@@ -20,5 +23,8 @@ jobs:
       - name: Install dependencies
         run: npm install --no-save ajv ajv-formats
 
-      - name: Validate plugin definitions
+      - name: Validate Cursor plugin definitions
         run: node scripts/validate-plugins.mjs
+
+      - name: Validate OpenAI plugin definitions
+        run: node scripts/validate-openai-plugins.mjs
