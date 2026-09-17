@@ -8,7 +8,7 @@ The upstream MCP is a local stdio process. OpenAI Secure MCP Tunnel can launch a
 
 - Blender 5.2 LTS, or a compatible Blender installation you intentionally choose.
 - Bun 1.3.5 or newer.
-- The pinned upstream checkout created by `../scripts/sync-upstream.ps1` or `../scripts/sync-upstream.sh`.
+- The pinned upstream checkout created by `../scripts/sync-upstream.ps1` or `bash ../scripts/sync-upstream.sh`.
 - OpenAI `tunnel-client` from Tunnels management.
 - A provisioned tunnel ID.
 - A runtime API key with the tunnel permissions required for `doctor` and `run`.
@@ -28,6 +28,14 @@ Verify that the MCP process can start:
 
 ```powershell
 ./scripts/run-mcp.ps1
+```
+
+On macOS/Linux:
+
+```bash
+bash ./scripts/sync-upstream.sh
+export BLENDER_EXECUTABLE="/path/to/blender"
+bash ./scripts/run-mcp.sh
 ```
 
 Stop the manual MCP process before starting the tunnel. With a stdio binding, the tunnel client owns the MCP child process.
@@ -55,8 +63,6 @@ tunnel-client run --profile blender-agent-studio
 macOS/Linux example:
 
 ```bash
-./scripts/sync-upstream.sh
-export BLENDER_EXECUTABLE="/path/to/blender"
 runner="$(pwd)/scripts/run-mcp.sh"
 
 tunnel-client init \
