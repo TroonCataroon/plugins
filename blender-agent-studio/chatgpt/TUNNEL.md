@@ -47,8 +47,9 @@ Create or retrieve the tunnel ID in OpenAI Tunnels management. Export the runtim
 PowerShell example:
 
 ```powershell
-$runner = (Resolve-Path ".\scripts\run-mcp.ps1").Path
-$mcpCommand = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$runner`""
+# Invoke bun directly so PowerShell is not sitting on the JSON-RPC stdio channel.
+$server = (Resolve-Path ".\.upstream\blender-agent-studio\plugins\blender-agent-studio\mcp\server.ts").Path
+$mcpCommand = "bun `"$server`""
 
 tunnel-client init `
   --sample sample_mcp_stdio_local `
